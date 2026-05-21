@@ -51,6 +51,7 @@ async def init_db():
                 discord_user_id TEXT NOT NULL UNIQUE,
                 birth_month     INTEGER NOT NULL,
                 birth_day       INTEGER NOT NULL,
+                timezone_offset TEXT NOT NULL DEFAULT '+05:30',
                 added_at        TIMESTAMPTZ DEFAULT NOW()
             )
         """)
