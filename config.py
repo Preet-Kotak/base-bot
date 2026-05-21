@@ -4,6 +4,7 @@ TOKEN        = os.environ["DISCORD_BOT_TOKEN"]
 GUILD_ID     = int(os.environ["DISCORD_GUILD_ID"])
 DATABASE_URL = os.environ["DATABASE_URL"]
 RENDER_URL   = os.environ.get("RENDER_URL", "")
+BIRTHDAY_CHANNEL_ID = int(os.environ.get("BIRTHDAY_CHANNEL_ID", 0))
 PORT         = int(os.environ.get("PORT", 8080))
 
 KEEPALIVE_INTERVAL = 9 * 60
