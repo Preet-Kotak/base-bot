@@ -145,3 +145,16 @@ def register(bot):
         await interaction.followup.send(
             f"🗑️ Birthday removed for {user.mention}.", ephemeral=True
         )
+
+    @bot.tree.command(name="fix_db", description="One time DB fix")
+    async def fix_db(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            pool = await get_pool()
+            async with pool.acquire() as conn:
+                await conn.execute(
+                    "ALTER TABLE birthdays ADD COLUMN IF NOT EXISTS timezone_offset TEXT NOT NULL DEFAULT '+05:30'"
+                )
+            await interaction.followup.send("✅ Done! Column added.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error: `{e}`", ephemeral=True)
