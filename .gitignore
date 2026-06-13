@@ -1,0 +1,37 @@
+# Environment variables
+.env
+
+# Logs
+failed_bases.log
+
+# Calibration screenshots
+ss*.png
+calibration_screenshot.png
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
