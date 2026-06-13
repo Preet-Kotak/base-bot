@@ -1,26 +1,13 @@
 import re
 import discord
-import aiohttp
 import asyncio
 from discord import app_commands
 from typing import Optional
 
-from config import DISTRICT_NAMES, DISTRICT_EMOJIS, DISTRICT_COLORS, RENEW_DELAY, RENEW_UPDATE_EVERY
+from config import DISTRICT_NAMES, DISTRICT_EMOJIS, DISTRICT_COLORS
 from database import get_pool
-from utils import get_district_from_link, build_renew_embed
+from utils import get_district_from_link
 from views.base_views import BaseNavigationView
-
-
-RENEW_TIMEOUT = aiohttp.ClientTimeout(total=10)
-
-RENEW_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-}
 
 
 def register(bot):
@@ -448,96 +435,3 @@ def register(bot):
 
         embed.set_footer(text=f"Scanned up to {limit} messages  ·  Clan Capital Base Bot")
         await interaction.followup.send(embed=embed, ephemeral=True)
-
-    @bot.tree.command(
-        name="renew",
-        description="Refresh every saved layout link by opening it (HTTP request) — keeps links alive",
-    )
-    @app_commands.describe(
-        district="Only renew links from a specific district (optional)",
-    )
-    @app_commands.choices(district=[
-        app_commands.Choice(name="Capital Peak (District 1)",       value="0"),
-        app_commands.Choice(name="Barbarian Camp (District 2)",     value="1"),
-        app_commands.Choice(name="Wizard Valley (District 3)",      value="2"),
-        app_commands.Choice(name="Balloon Lagoon (District 4)",     value="3"),
-        app_commands.Choice(name="Builder's Workshop (District 5)", value="4"),
-        app_commands.Choice(name="Dragon Cliffs (District 6)",      value="5"),
-        app_commands.Choice(name="Golem Quarry (District 7)",       value="6"),
-        app_commands.Choice(name="Skeleton Park (District 8)",      value="7"),
-        app_commands.Choice(name="Goblin Mines (District 9)",       value="8"),
-    ])
-    async def renew(
-        interaction: discord.Interaction,
-        district: Optional[str] = None,
-    ):
-        await interaction.response.defer()
-
-        pool = await get_pool()
-        async with pool.acquire() as conn:
-            if district is not None:
-                rows = await conn.fetch(
-                    "SELECT id, link FROM bases WHERE district_number = $1 ORDER BY id",
-                    int(district),
-                )
-            else:
-                rows = await conn.fetch("SELECT id, link FROM bases ORDER BY district_number, id")
-
-        if not rows:
-            scope = (
-                f"district **{DISTRICT_NAMES.get(int(district), district)}**"
-                if district is not None
-                else "the database"
-            )
-            await interaction.followup.send(f"No bases found in {scope}.")
-            return
-
-        total  = len(rows)
-        done   = 0
-        ok     = 0
-        failed = 0
-
-        msg = await interaction.followup.send(
-            embed=build_renew_embed(total, 0, 0, 0, rows[0]["link"], finished=False),
-            wait=True,
-        )
-
-        async with aiohttp.ClientSession(headers=RENEW_HEADERS) as session:
-            for row in rows:
-                link = row["link"]
-                try:
-                    async with session.get(
-                        link,
-                        timeout=RENEW_TIMEOUT,
-                        allow_redirects=True,
-                        ssl=False,
-                    ) as resp:
-                        if resp.status < 500:
-                            ok += 1
-                        else:
-                            failed += 1
-                except Exception:
-                    failed += 1
-
-                done += 1
-                await asyncio.sleep(RENEW_DELAY)
-
-                if done % RENEW_UPDATE_EVERY == 0 or done == total:
-                    next_link = rows[done]["link"] if done < total else None
-                    try:
-                        await msg.edit(
-                            embed=build_renew_embed(
-                                total, done, ok, failed,
-                                next_link,
-                                finished=(done == total),
-                            )
-                        )
-                    except discord.HTTPException:
-                        pass
-
-        try:
-            await msg.edit(
-                embed=build_renew_embed(total, total, ok, failed, None, finished=True)
-            )
-        except discord.HTTPException:
-            pass
