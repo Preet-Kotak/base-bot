@@ -3,6 +3,7 @@
 
 # Logs
 failed_bases.log
+migration_failed.log
 
 # Calibration screenshots
 ss*.png

@@ -1,8 +1,18 @@
 import re
 import aiohttp
 import discord
+import cloudinary
+import cloudinary.uploader
 from typing import Optional
-from config import DISTRICT_NAMES, DISTRICT_EMOJIS, RENEW_DELAY
+from config import DISTRICT_NAMES, DISTRICT_EMOJIS, RENEW_DELAY, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET
+
+# Configure Cloudinary
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET,
+    )
 
 
 def get_district_from_link(link: str) -> Optional[int]:
@@ -14,6 +24,26 @@ def get_district_from_link(link: str) -> Optional[int]:
             if 0 <= n <= 8:
                 return n
     return None
+
+
+async def upload_to_cloudinary(image_url: str, folder: str = "clash_bases") -> Optional[str]:
+    """
+    Upload an image to Cloudinary from a URL.
+    Returns the Cloudinary URL on success, None on failure.
+    """
+    if not CLOUDINARY_CLOUD_NAME or not CLOUDINARY_API_KEY or not CLOUDINARY_API_SECRET:
+        return None
+    
+    try:
+        result = cloudinary.uploader.upload(
+            image_url,
+            folder=folder,
+            resource_type="image",
+        )
+        return result.get("secure_url")
+    except Exception as e:
+        print(f"Cloudinary upload failed: {e}")
+        return None
 
 
 def build_renew_embed(

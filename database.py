@@ -9,7 +9,13 @@ async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
         url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        _pool = await asyncpg.create_pool(url, min_size=1, max_size=5)
+        # Disable statement caching for Supabase pgbouncer compatibility
+        _pool = await asyncpg.create_pool(
+            url, 
+            min_size=1, 
+            max_size=5,
+            statement_cache_size=0
+        )
     return _pool
 
 
