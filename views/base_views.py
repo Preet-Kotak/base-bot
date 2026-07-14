@@ -1,6 +1,6 @@
 import discord
 from database import get_pool
-from utils import get_district_from_link
+from utils import get_district_from_link, upload_to_cloudinary
 from config import DISTRICT_NAMES, DISTRICT_EMOJIS, DISTRICT_COLORS
 
 
@@ -59,7 +59,14 @@ class EditBaseModal(discord.ui.Modal, title="✏️ Edit Base"):
         new_link       = self.link_input.value.strip()
         new_builder    = self.builder_input.value.strip() or None
         new_desc       = self.description_input.value.strip() or None
-        new_screenshot = self.screenshot_input.value.strip() or row["screenshot"]
+        new_screenshot_input = self.screenshot_input.value.strip()
+        
+        # If user provided a new screenshot URL, upload to Cloudinary
+        if new_screenshot_input and new_screenshot_input != row["screenshot"]:
+            cloudinary_url = await upload_to_cloudinary(new_screenshot_input)
+            new_screenshot = cloudinary_url if cloudinary_url else new_screenshot_input
+        else:
+            new_screenshot = row["screenshot"]
 
         new_district = get_district_from_link(new_link)
         if new_district is None:

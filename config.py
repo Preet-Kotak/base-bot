@@ -7,6 +7,11 @@ RENDER_URL   = os.environ.get("RENDER_URL", "")
 BIRTHDAY_CHANNEL_ID = int(os.environ.get("BIRTHDAY_CHANNEL_ID", 0))
 PORT         = int(os.environ.get("PORT", 8080))
 
+# Cloudinary configuration
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
+CLOUDINARY_API_KEY    = os.environ.get("CLOUDINARY_API_KEY", "")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
+
 KEEPALIVE_INTERVAL = 9 * 60
 
 DISTRICT_NAMES = {

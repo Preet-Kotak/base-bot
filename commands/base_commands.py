@@ -6,7 +6,7 @@ from typing import Optional
 
 from config import DISTRICT_NAMES, DISTRICT_EMOJIS, DISTRICT_COLORS
 from database import get_pool
-from utils import get_district_from_link
+from utils import get_district_from_link, upload_to_cloudinary
 from views.base_views import BaseNavigationView
 
 
@@ -40,7 +40,12 @@ def register(bot):
 
         district_name  = DISTRICT_NAMES.get(district_number, f"District {district_number + 1}")
         emoji          = DISTRICT_EMOJIS.get(district_number, "🏰")
-        screenshot_url = screenshot.url if screenshot else None
+        
+        # Upload screenshot to Cloudinary if provided
+        screenshot_url = None
+        if screenshot:
+            cloudinary_url = await upload_to_cloudinary(screenshot.url)
+            screenshot_url = cloudinary_url if cloudinary_url else screenshot.url
 
         pool = await get_pool()
         async with pool.acquire() as conn:
@@ -274,7 +279,11 @@ def register(bot):
                     return
 
             new_link       = link            if link            else existing_link
-            new_screenshot = screenshot.url  if screenshot      else existing_ss
+            new_screenshot = existing_ss
+            if screenshot:
+                # Upload new screenshot to Cloudinary
+                cloudinary_url = await upload_to_cloudinary(screenshot.url)
+                new_screenshot = cloudinary_url if cloudinary_url else screenshot.url
             new_builder    = builder_name    if builder_name is not None else existing_builder
             new_desc       = description     if description  is not None else existing_desc
 

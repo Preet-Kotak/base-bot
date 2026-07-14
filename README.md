@@ -12,6 +12,7 @@ Includes a local script (`renew_bases.py`) that opens every saved base link insi
 |---|---|
 | Bot hosting | [Render](https://render.com) (free web service) |
 | Database | [Supabase](https://supabase.com) (PostgreSQL) |
+| Image storage | [Cloudinary](https://cloudinary.com) (free tier) |
 | Language | Python 3.11+ |
 | Discord library | discord.py |
 | Emulator (local) | LDPlayer |
@@ -94,25 +95,11 @@ Set these in Render's environment settings (for the bot) and in `.env` locally (
 | `DISCORD_GUILD_ID` | ✅ | Your Discord server ID |
 | `DATABASE_URL` | ✅ | Supabase PostgreSQL connection string |
 | `BIRTHDAY_CHANNEL_ID` | ✅ | Discord channel ID for birthday announcements |
+| `CLOUDINARY_CLOUD_NAME` | ✅ | Cloudinary cloud name for image storage |
+| `CLOUDINARY_API_KEY` | ✅ | Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | ✅ | Cloudinary API secret |
 | `RENDER_URL` | optional | Your Render app URL — enables self-ping keepalive |
 | `PORT` | optional | HTTP server port (default: 8080) |
-
-### Getting the Supabase connection string
-
-1. Open your Supabase project
-2. Go to **Project Settings → Database → Connection string**
-3. Select **URI** and copy it
-4. Use the **Transaction pooler** (port 6543) for better connection handling
-
-### Example `.env` for local use
-
-```
-DISCORD_BOT_TOKEN=your_bot_token_here
-DISCORD_GUILD_ID=your_guild_id_here
-DATABASE_URL=postgresql://postgres.<ref>:<password>@<host>:6543/postgres
-BIRTHDAY_CHANNEL_ID=your_channel_id_here
-RENDER_URL=https://your-app.onrender.com
-```
 
 ---
 
