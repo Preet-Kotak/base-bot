@@ -444,3 +444,152 @@ def register(bot):
 
         embed.set_footer(text=f"Scanned up to {limit} messages  ·  Clan Capital Base Bot")
         await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @bot.tree.command(name="migrate_images", description="Migrate Discord CDN images to Cloudinary by posting them in a channel")
+    @app_commands.describe(
+        channel_id="The ID of the channel where images will be posted to fetch new URLs",
+    )
+    async def migrate_images(
+        interaction: discord.Interaction,
+        channel_id: str,
+    ):
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            channel = bot.get_channel(int(channel_id)) or await bot.fetch_channel(int(channel_id))
+        except (ValueError, discord.NotFound, discord.Forbidden):
+            await interaction.followup.send("❌ Could not find or access that channel. Check the ID and bot permissions.", ephemeral=True)
+            return
+
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.followup.send("❌ That channel is not a text channel.", ephemeral=True)
+            return
+
+        # Fetch all bases with screenshots that contain Discord URLs
+        pool = await get_pool()
+        async with pool.acquire() as conn:
+            bases = await conn.fetch(
+                """SELECT id, screenshot 
+                   FROM bases 
+                   WHERE screenshot IS NOT NULL 
+                   AND (screenshot LIKE '%cdn.discordapp.com%' OR screenshot LIKE '%media.discordapp.net%')
+                   ORDER BY id"""
+            )
+
+        if not bases:
+            await interaction.followup.send("✅ No Discord CDN images found to migrate.", ephemeral=True)
+            return
+
+        total = len(bases)
+        await interaction.followup.send(
+            f"🔄 Starting migration of **{total}** Discord CDN images to Cloudinary...\n"
+            f"This may take a while. Progress updates will be sent in <#{channel.id}>.",
+            ephemeral=True
+        )
+
+        success_count = 0
+        failed_bases = []
+
+        # Send initial progress message
+        progress_msg = await channel.send(
+            f"🔄 **Image Migration Started**\n"
+            f"Migrating {total} Discord CDN images to Cloudinary...\n"
+            f"Progress: 0/{total}"
+        )
+
+        for idx, base in enumerate(bases, 1):
+            base_id = base["id"]
+            old_url = base["screenshot"]
+            msg = None
+
+            try:
+                # Post the image URL to the channel
+                msg = await channel.send(old_url)
+                
+                # Wait a bit for Discord to process the message
+                await asyncio.sleep(2)
+                
+                # Fetch the message again to get the attachment or embed
+                msg = await channel.fetch_message(msg.id)
+                
+                # Get the new URL from attachment or embed
+                new_discord_url = None
+                if msg.attachments:
+                    new_discord_url = msg.attachments[0].url
+                elif msg.embeds and msg.embeds[0].thumbnail:
+                    new_discord_url = msg.embeds[0].thumbnail.url
+                elif msg.embeds and msg.embeds[0].image:
+                    new_discord_url = msg.embeds[0].image.url
+                
+                if not new_discord_url:
+                    failed_bases.append(base_id)
+                    if msg:
+                        await msg.delete()
+                    continue
+                
+                # Upload to Cloudinary
+                cloudinary_url = await upload_to_cloudinary(new_discord_url)
+                
+                if not cloudinary_url:
+                    failed_bases.append(base_id)
+                    if msg:
+                        await msg.delete()
+                    continue
+                
+                # Update database with Cloudinary URL
+                async with pool.acquire() as conn:
+                    await conn.execute(
+                        "UPDATE bases SET screenshot = $1 WHERE id = $2",
+                        cloudinary_url, base_id
+                    )
+                
+                success_count += 1
+                
+                # Delete the message to keep the channel clean
+                await asyncio.sleep(1)
+                await msg.delete()
+                
+            except Exception as e:
+                failed_bases.append(base_id)
+                if msg:
+                    try:
+                        await msg.delete()
+                    except:
+                        pass
+                print(f"Error processing base {base_id}: {e}")
+            
+            # Update progress every 10 bases or at the end
+            if idx % 10 == 0 or idx == total:
+                try:
+                    await progress_msg.edit(
+                        content=f"🔄 **Image Migration In Progress**\n"
+                                f"Progress: {idx}/{total}\n"
+                                f"✅ Success: {success_count}\n"
+                                f"❌ Failed: {len(failed_bases)}"
+                    )
+                except:
+                    pass
+            
+            # Small delay between requests
+            await asyncio.sleep(1)
+
+        # Send final summary
+        embed = discord.Embed(
+            title="✅  Image Migration Complete" if not failed_bases else "⚠️  Image Migration Complete (with errors)",
+            color=discord.Color.green() if not failed_bases else discord.Color.orange(),
+        )
+        embed.add_field(name="📊 Total", value=str(total), inline=True)
+        embed.add_field(name="✅ Success", value=str(success_count), inline=True)
+        embed.add_field(name="❌ Failed", value=str(len(failed_bases)), inline=True)
+        
+        if failed_bases:
+            # Split failed base IDs into chunks if too many
+            failed_str = ", ".join(f"#{bid}" for bid in failed_bases)
+            if len(failed_str) > 1024:
+                failed_str = ", ".join(f"#{bid}" for bid in failed_bases[:50]) + f"\n... and {len(failed_bases) - 50} more"
+            embed.add_field(name="❌ Failed Base IDs", value=failed_str, inline=False)
+        
+        embed.set_footer(text="Clan Capital Base Bot  ·  Images now hosted on Cloudinary")
+        
+        await progress_msg.edit(content=None, embed=embed)
+        await channel.send(f"<@{interaction.user.id}> Migration complete!", embed=embed)
