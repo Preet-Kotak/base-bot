@@ -481,20 +481,28 @@ def register(bot):
             return
 
         total = len(bases)
-        await interaction.followup.send(
-            f"🔄 Starting migration of **{total}** Discord CDN images to Cloudinary...\n"
-            f"This may take a while. Progress updates will be sent in <#{channel.id}>.",
-            ephemeral=True
-        )
-
+        
         success_count = 0
         failed_bases = []
 
         # Send initial progress message
-        progress_msg = await channel.send(
-            f"🔄 **Image Migration Started**\n"
-            f"Migrating {total} Discord CDN images to Cloudinary...\n"
-            f"Progress: 0/{total}"
+        try:
+            progress_msg = await channel.send(
+                f"🔄 **Image Migration Started**\n"
+                f"Migrating {total} Discord CDN images to Cloudinary...\n"
+                f"Progress: 0/{total}"
+            )
+        except Exception as e:
+            await interaction.followup.send(
+                f"❌ Could not send message to <#{channel.id}>. Check bot permissions.\nError: {e}",
+                ephemeral=True
+            )
+            return
+        
+        await interaction.followup.send(
+            f"🔄 Starting migration of **{total}** Discord CDN images to Cloudinary...\n"
+            f"Progress updates will be sent in <#{channel.id}>.",
+            ephemeral=True
         )
 
         for idx, base in enumerate(bases, 1):
