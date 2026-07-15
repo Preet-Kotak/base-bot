@@ -481,7 +481,20 @@ def register(bot):
             return
 
         total = len(bases)
-        
+
+        # Send confirmation and start background task
+        await interaction.followup.send(
+            f"🔄 Starting migration of **{total}** Discord CDN images to Cloudinary...\n"
+            f"Progress updates will be sent in <#{channel.id}>.",
+            ephemeral=True
+        )
+
+        # Run migration in background
+        bot.loop.create_task(_run_migration(channel, bases, interaction.user.id))
+
+    async def _run_migration(channel, bases, user_id):
+        """Background task to migrate images"""
+        total = len(bases)
         success_count = 0
         failed_bases = []
 
@@ -493,17 +506,10 @@ def register(bot):
                 f"Progress: 0/{total}"
             )
         except Exception as e:
-            await interaction.followup.send(
-                f"❌ Could not send message to <#{channel.id}>. Check bot permissions.\nError: {e}",
-                ephemeral=True
-            )
+            print(f"Could not send message to channel: {e}")
             return
-        
-        await interaction.followup.send(
-            f"🔄 Starting migration of **{total}** Discord CDN images to Cloudinary...\n"
-            f"Progress updates will be sent in <#{channel.id}>.",
-            ephemeral=True
-        )
+
+        pool = await get_pool()
 
         for idx, base in enumerate(bases, 1):
             base_id = base["id"]
@@ -600,4 +606,4 @@ def register(bot):
         embed.set_footer(text="Clan Capital Base Bot  ·  Images now hosted on Cloudinary")
         
         await progress_msg.edit(content=None, embed=embed)
-        await channel.send(f"<@{interaction.user.id}> Migration complete!", embed=embed)
+        await channel.send(f"<@{user_id}> Migration complete!", embed=embed)
