@@ -77,6 +77,7 @@ def register(bot):
         builder_name="Filter by builder name (optional)",
         base_id="Jump directly to a specific base by its ID (optional)",
         search_description="Keyword to search within base descriptions (optional)",
+        match_description="If true, show bases WITH the keyword; if false, show bases WITHOUT it (default: true)",
         reverse="Start browsing from the last (newest) base instead of the first",
     )
     @app_commands.choices(district=[
@@ -96,6 +97,7 @@ def register(bot):
         builder_name: Optional[str] = None,
         base_id: Optional[int] = None,
         search_description: Optional[str] = None,
+        match_description: Optional[bool] = True,
         reverse: Optional[bool] = False,
     ):
         await interaction.response.defer()
@@ -129,8 +131,12 @@ def register(bot):
             conditions.append(f"LOWER(builder_name) LIKE LOWER(${len(args)})")
 
         if search_description:
-            args.append(f"%{search_description}%")
-            conditions.append(f"LOWER(description) LIKE LOWER(${len(args)})")
+            if match_description:
+                args.append(f"%{search_description}%")
+                conditions.append(f"LOWER(description) LIKE LOWER(${len(args)})")
+            else:
+                args.append(f"%{search_description}%")
+                conditions.append(f"LOWER(description) NOT LIKE LOWER(${len(args)})")
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         query = f"""
@@ -150,7 +156,8 @@ def register(bot):
             if builder_name:
                 filters.append(f"builder **{builder_name}**")
             if search_description:
-                filters.append(f"description containing **\"{search_description}\"**")
+                match_text = "containing" if match_description else "NOT containing"
+                filters.append(f"description {match_text} **\"{search_description}\"**")
             filter_text = " and ".join(filters) if filters else "any district or builder"
             await interaction.followup.send(f"No bases found for {filter_text}.")
             return
