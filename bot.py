@@ -16,8 +16,9 @@ _HASH_FILE = os.path.join(os.path.dirname(__file__), ".cmd_hash")
 def _commands_hash(tree: discord.app_commands.CommandTree) -> str:
     """Return a stable hash of all registered command names + descriptions."""
     commands_data = sorted(
-        {"name": c.name, "description": c.description}
-        for c in tree.get_commands()
+        ({"name": c.name, "description": c.description}
+         for c in tree.get_commands()),
+        key=lambda c: c["name"],
     )
     serialized = json.dumps(commands_data, sort_keys=True)
     return hashlib.sha256(serialized.encode()).hexdigest()
