@@ -1,6 +1,9 @@
 # Environment variables
 .env
 
+# Command tree sync hash (runtime state, not source)
+.cmd_hash
+
 # Logs
 failed_bases.log
 migration_failed.log
