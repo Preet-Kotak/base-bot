@@ -1,6 +1,7 @@
+gradio==4.44.0
+spaces
 fastapi
 uvicorn[standard]
 ultralytics
 opencv-python-headless
-python-dotenv
 python-multipart

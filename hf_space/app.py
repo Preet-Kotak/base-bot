@@ -1,46 +1,44 @@
 """
-Hugging Face Space — YOLO extract server.
+Hugging Face Space — YOLO extract server (Gradio + ZeroGPU).
 
-Exposes a single endpoint:
+Mounts a FastAPI app on the Gradio server so the Discord bot can call:
     POST /extract
         Header:  X-API-Key: <HF_API_KEY>
         Body:    multipart/form-data
                    file     — image file (jpg/png)
-                   district — integer 0-8, or -1 to skip calibration (optional, default -1)
+                   district — integer 0-8, or -1 to skip calibration (default -1)
         Returns: JSON  { buildings, anchor_found, total_detections, conf_used, calibrated, runs }
 
-The Discord bot on Render calls this endpoint instead of running YOLO locally.
-All matching and drawing logic stays on Render — only YOLO inference lives here.
+ZeroGPU allocates a GPU for the duration of the decorated function call.
 """
 
 import os
 import tempfile
 from pathlib import Path
 
+import gradio as gr
+import spaces
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
-# ── load model once at startup ────────────────────────────────────────────────
-# HF Spaces stores secrets as env vars — set HF_API_KEY in Space secrets.
+# ── config ────────────────────────────────────────────────────────────────────
 API_KEY      = os.environ.get("HF_API_KEY", "")
 WEIGHTS_PATH = Path(__file__).parent / "model" / "best.pt"
 
-# lazy singleton — loaded on first request to keep startup fast
+# ── lazy model singleton ───────────────────────────────────────────────────────
 _extractor = None
 
 
 def get_extractor():
     global _extractor
     if _extractor is None:
-        # import here so the module loads even if ultralytics isn't installed yet
-        # during the Space build phase
         from extractor import Extractor
         _extractor = Extractor(weights=str(WEIGHTS_PATH))
     return _extractor
 
 
-# ── app ───────────────────────────────────────────────────────────────────────
-app = FastAPI(title="YOLO Extract API")
+# ── FastAPI app (mounted onto Gradio) ─────────────────────────────────────────
+fastapi_app = FastAPI(title="YOLO Extract API")
 
 
 def _check_key(x_api_key: str):
@@ -50,31 +48,34 @@ def _check_key(x_api_key: str):
         raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 
-@app.get("/health")
+@fastapi_app.get("/health")
 def health():
-    """Keepalive probe — always returns 200."""
+    """Keepalive probe."""
     return {"status": "ok"}
 
 
-@app.post("/extract")
-async def extract(
-    file:     UploadFile = File(...),
-    district: int        = Form(-1),
-    x_api_key: str       = Header(...),
-):
+@spaces.GPU
+def _run_extraction(image_path: str, district: int | None) -> dict:
     """
-    Run YOLO on the uploaded image and return the building layout as JSON.
+    Wrapped with @spaces.GPU so ZeroGPU allocates a GPU for this call.
+    Must be a plain function (not async) for ZeroGPU compatibility.
+    """
+    ext = get_extractor()
+    return ext.extract(image_path, district=district)
 
-    district: 0-8 to enable calibration, -1 (or omit) to skip.
-    """
+
+@fastapi_app.post("/extract")
+async def extract(
+    file:      UploadFile = File(...),
+    district:  int        = Form(-1),
+    x_api_key: str        = Header(...),
+):
     _check_key(x_api_key)
 
-    # validate file type
     content_type = file.content_type or ""
     if not content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
 
-    # write to temp file
     suffix = Path(file.filename or "img.jpg").suffix or ".jpg"
     tmp    = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
@@ -82,10 +83,11 @@ async def extract(
         tmp.write(contents)
         tmp.close()
 
-        ext      = get_extractor()
         dist_arg = int(district) if int(district) >= 0 else None
-        result   = ext.extract(tmp.name, district=dist_arg)
+        result   = _run_extraction(tmp.name, dist_arg)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
     finally:
@@ -102,3 +104,16 @@ async def extract(
         "calibrated":       result["calibrated"],
         "runs":             result["runs"],
     })
+
+
+# ── Gradio UI (minimal — just keeps the Space alive) ──────────────────────────
+with gr.Blocks() as gradio_ui:
+    gr.Markdown("## YOLO Extract API\nInternal inference server. Use the `/extract` endpoint.")
+
+# mount FastAPI onto Gradio and launch
+gradio_ui.mount_gradio_app = None  # not needed
+app = gr.mount_gradio_app(fastapi_app, gradio_ui, path="/ui")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
