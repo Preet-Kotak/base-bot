@@ -299,22 +299,6 @@ def _cv2_to_discord_file(img: np.ndarray, filename: str) -> discord.File:
     return discord.File(io.BytesIO(buf.tobytes()), filename=filename)
 
 
-def _stack_images(top: np.ndarray, bottom: np.ndarray) -> np.ndarray:
-    """Vertically stack two images, padding the narrower one."""
-    h1, w1 = top.shape[:2]
-    h2, w2 = bottom.shape[:2]
-    max_w  = max(w1, w2)
-
-    def _pad(img: np.ndarray) -> np.ndarray:
-        diff = max_w - img.shape[1]
-        if diff == 0:
-            return img
-        return cv2.copyMakeBorder(img, 0, 0, 0, diff, cv2.BORDER_CONSTANT, value=(30, 30, 30))
-
-    sep = np.full((4, max_w, 3), 80, dtype=np.uint8)
-    return np.vstack([_pad(top), sep, _pad(bottom)])
-
-
 # ─── navigation view for /find_similar ────────────────────────────────────────
 
 class MatchNavigationView(discord.ui.View):
@@ -622,25 +606,23 @@ def register(bot):
             await interaction.followup.send("❌ Could not decode one or both images.")
             return
 
-        vis1     = _draw_comparison(img1, px1, unmatched_px1, f"{label1} — {match_pct}% match")
-        vis2     = _draw_comparison(img2, px2, unmatched_px2, f"{label2} — {match_pct}% match")
-        combined = _stack_images(vis1, vis2)
-        file     = _cv2_to_discord_file(combined, "compare.png")
+        vis1  = _draw_comparison(img1, px1, unmatched_px1, f"{label1} — {match_pct}% match")
+        vis2  = _draw_comparison(img2, px2, unmatched_px2, f"{label2} — {match_pct}% match")
+        file1 = _cv2_to_discord_file(vis1, "base1.png")
+        file2 = _cv2_to_discord_file(vis2, "base2.png")
 
         match_bar  = "🟢" if match_pct >= 90 else ("🟡" if match_pct >= 75 else "🔴")
         mode_label = "fuzzy" if fuzzy else "strict"
 
-        embed = discord.Embed(title="🔍  Base Comparison", color=0x3498DB)
-        embed.add_field(name="🎯 Match",    value=f"{match_bar} **{match_pct}%**",      inline=True)
-        embed.add_field(name="✅ Matched",  value=f"**{matched}** / {total} buildings", inline=True)
-        embed.add_field(name="⚙️ Mode",     value=mode_label.capitalize(),              inline=True)
-        embed.add_field(name=f"❌ Unmatched — {label1}", value=str(len(unmatched_a)),   inline=True)
-        embed.add_field(name=f"❌ Unmatched — {label2}", value=str(len(unmatched_b)),   inline=True)
-        embed.set_image(url="attachment://compare.png")
-        embed.set_footer(
-            text="Matched = grayed  ·  Unmatched = full colour + red dot  ·  Clan Capital Base Bot"
+        content = (
+            f"🔍 **Base Comparison** — {match_bar} **{match_pct}%** match  ·  "
+            f"✅ **{matched}/{total}** buildings matched  ·  "
+            f"⚙️ {mode_label.capitalize()} mode\n"
+            f"❌ Unmatched in {label1}: **{len(unmatched_a)}**  ·  "
+            f"Unmatched in {label2}: **{len(unmatched_b)}**\n"
+            f"*Matched = grayed  ·  Unmatched = full colour + red dot*"
         )
-        await interaction.followup.send(embed=embed, file=file)
+        await interaction.followup.send(content=content, files=[file1, file2])
 
 
     # ── /visualize_base ────────────────────────────────────────────────────────
