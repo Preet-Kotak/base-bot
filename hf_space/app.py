@@ -111,7 +111,6 @@ with gr.Blocks() as gradio_ui:
     gr.Markdown("## YOLO Extract API\nInternal inference server. Use the `/extract` endpoint.")
 
 # mount FastAPI onto Gradio and launch
-gradio_ui.mount_gradio_app = None  # not needed
 app = gr.mount_gradio_app(fastapi_app, gradio_ui, path="/ui")
 
 if __name__ == "__main__":
