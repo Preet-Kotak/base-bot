@@ -3,3 +3,7 @@ aiohttp
 asyncpg
 cloudinary
 python-dotenv
+opencv-python-headless
+scipy
+numpy
+httpx

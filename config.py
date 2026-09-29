@@ -14,6 +14,10 @@ CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
 
 KEEPALIVE_INTERVAL = 9 * 60
 
+# HF Space YOLO inference API
+HF_SPACE_URL = os.environ.get("HF_SPACE_URL", "")
+HF_API_KEY   = os.environ.get("HF_API_KEY", "")
+
 DISTRICT_NAMES = {
     0: "Capital Peak",
     1: "Barbarian Camp",

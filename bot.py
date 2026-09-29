@@ -9,6 +9,7 @@ import commands.base_commands as base_commands
 import commands.clan_commands as clan_commands
 import commands.timezone_commands as timezone_commands
 import commands.birthday_commands as birthday_commands
+import commands.match_commands as match_commands
 
 _HASH_FILE = os.path.join(os.path.dirname(__file__), ".cmd_hash")
 
@@ -34,6 +35,7 @@ class DiscordBot(commands.Bot):
         clan_commands.register(self)
         timezone_commands.register(self)
         birthday_commands.register(self)
+        match_commands.register(self)
         await init_db()
 
         guild = discord.Object(id=GUILD_ID)
