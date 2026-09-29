@@ -1,6 +1,5 @@
 gradio==5.9.1
 huggingface_hub>=0.24.0
-spaces
 fastapi
 uvicorn[standard]
 ultralytics

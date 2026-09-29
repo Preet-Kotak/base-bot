@@ -1,15 +1,13 @@
 """
-Hugging Face Space — YOLO extract server (Gradio + ZeroGPU).
+Hugging Face Space — YOLO extract server (Gradio SDK, CPU).
 
-Mounts a FastAPI app on the Gradio server so the Discord bot can call:
+Mounts a FastAPI app alongside Gradio so the Discord bot can call:
     POST /extract
         Header:  X-API-Key: <HF_API_KEY>
         Body:    multipart/form-data
                    file     — image file (jpg/png)
                    district — integer 0-8, or -1 to skip calibration (default -1)
         Returns: JSON  { buildings, anchor_found, total_detections, conf_used, calibrated, runs }
-
-ZeroGPU allocates a GPU for the duration of the decorated function call.
 """
 
 import os
@@ -17,7 +15,6 @@ import tempfile
 from pathlib import Path
 
 import gradio as gr
-import spaces
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -37,7 +34,7 @@ def get_extractor():
     return _extractor
 
 
-# ── FastAPI app (mounted onto Gradio) ─────────────────────────────────────────
+# ── FastAPI app ────────────────────────────────────────────────────────────────
 fastapi_app = FastAPI(title="YOLO Extract API")
 
 
@@ -50,18 +47,7 @@ def _check_key(x_api_key: str):
 
 @fastapi_app.get("/health")
 def health():
-    """Keepalive probe."""
     return {"status": "ok"}
-
-
-@spaces.GPU
-def _run_extraction(image_path: str, district: int | None) -> dict:
-    """
-    Wrapped with @spaces.GPU so ZeroGPU allocates a GPU for this call.
-    Must be a plain function (not async) for ZeroGPU compatibility.
-    """
-    ext = get_extractor()
-    return ext.extract(image_path, district=district)
 
 
 @fastapi_app.post("/extract")
@@ -84,7 +70,7 @@ async def extract(
         tmp.close()
 
         dist_arg = int(district) if int(district) >= 0 else None
-        result   = _run_extraction(tmp.name, dist_arg)
+        result   = get_extractor().extract(tmp.name, district=dist_arg)
 
     except HTTPException:
         raise
@@ -106,13 +92,8 @@ async def extract(
     })
 
 
-# ── Gradio UI (minimal — just keeps the Space alive) ──────────────────────────
+# ── Gradio UI — required by Gradio SDK to keep the Space running ───────────────
 with gr.Blocks() as gradio_ui:
     gr.Markdown("## YOLO Extract API\nInternal inference server. Use the `/extract` endpoint.")
 
-# mount FastAPI onto Gradio and launch
 app = gr.mount_gradio_app(fastapi_app, gradio_ui, path="/ui")
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
