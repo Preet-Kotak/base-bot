@@ -159,26 +159,14 @@ async def _get_pixel_boxes_remote(
     filename: str,
 ) -> list[dict]:
     """
-    Re-run remote extraction without district calibration to get pixel coords.
-    The HF Space /extract endpoint already returns x/y relative to anchor,
-    but NOT pixel coords. We re-run with conf fixed (no calibration, district=-1)
-    purely to get the layout again — then combine with a fresh cv2 decode
-    to get pixel coords from the normalised values.
-
-    Since the HF endpoint only returns normalised coords, we reconstruct pixel
-    positions from the downloaded image dimensions + normalised values.
-    Note: xywhn coords are relative to image size, but our x/y are relative to
-    the anchor. We need absolute normalised positions, which means we re-run
-    extract with district=None so we get anchor-relative coords, then convert.
-
-    Simpler approach: use the returned buildings from /extract and infer pixel
-    positions from the normalised absolute positions stored before anchor subtraction.
-    We can't do this exactly without the raw xywhn. Instead we use a simpler heuristic:
-    decode the image, scale the (x, y) normalised-relative-to-anchor positions back
-    to pixels using the image dimensions (approximate center region).
+    Re-run remote extraction to get pixel coords.
+    Uses the real anchor (district hall) position returned by /extract
+    to correctly map normalised coords back to pixel positions.
     """
-    result   = await remote_extract(image_bytes, filename=filename, district=None)
+    result    = await remote_extract(image_bytes, filename=filename, district=None)
     buildings = result["buildings"]
+    anchor_x  = result.get("anchor_x", 0.5)
+    anchor_y  = result.get("anchor_y", 0.5)
 
     # decode image to get dimensions
     nparr = np.frombuffer(image_bytes, np.uint8)
@@ -187,16 +175,14 @@ async def _get_pixel_boxes_remote(
         return []
     h, w = img.shape[:2]
 
-    # x, y in buildings are relative to anchor (centre ≈ 0.5, 0.5 of image).
-    # Add 0.5 back to get approximate absolute normalised position.
     pixel_boxes = []
     for b in buildings:
-        abs_x = b["x"] + 0.5
-        abs_y = b["y"] + 0.5
-        # estimate a small bounding box (40x40 px) centred on the building
-        cx = int(abs_x * w)
-        cy = int(abs_y * h)
-        half = 20
+        # x/y are relative to anchor — add real anchor position to get absolute normalised
+        abs_x = b["x"] + anchor_x
+        abs_y = b["y"] + anchor_y
+        cx    = int(abs_x * w)
+        cy    = int(abs_y * h)
+        half  = 20
         pixel_boxes.append({
             "type": b["type"],
             "x":    b["x"],

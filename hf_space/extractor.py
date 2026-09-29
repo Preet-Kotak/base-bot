@@ -99,6 +99,8 @@ class Extractor:
         return {
             "buildings":        buildings,
             "anchor_found":     anchor_found,
+            "anchor_x":         anchor_x,
+            "anchor_y":         anchor_y,
             "total_detections": len(buildings),
         }
 
