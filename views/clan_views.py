@@ -3,6 +3,47 @@ import asyncpg
 from database import get_pool
 
 
+class GoToPageModal(discord.ui.Modal, title="Go to Page"):
+    """Modal to jump to a specific page in pagination."""
+
+    page_input = discord.ui.TextInput(
+        label="Page Number",
+        style=discord.TextStyle.short,
+        placeholder="Enter a page number",
+        required=True,
+        min_length=1,
+        max_length=10,
+    )
+
+    def __init__(self, nav_view: "ClanNavigationView"):
+        super().__init__()
+        self.nav_view = nav_view
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            page_num = int(self.page_input.value.strip())
+            total_pages = len(self.nav_view.clans)
+            
+            if page_num < 1 or page_num > total_pages:
+                await interaction.response.send_message(
+                    f"❌ Please enter a number between 1 and {total_pages}.",
+                    ephemeral=True,
+                )
+                return
+            
+            # Convert page number (1-indexed) to index (0-indexed)
+            self.nav_view.current_index = page_num - 1
+            self.nav_view._refresh_buttons()
+            await interaction.response.edit_message(
+                embed=self.nav_view.build_embed(), view=self.nav_view
+            )
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Please enter a valid number.",
+                ephemeral=True,
+            )
+
+
 class EditClanModal(discord.ui.Modal, title="✏️ Edit Clan"):
     """Pre-filled modal for editing a clan from the ClanNavigationView."""
 
@@ -133,9 +174,10 @@ class ClanNavigationView(discord.ui.View):
         self._refresh_buttons()
         await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
-    @discord.ui.button(label="1 / 1", style=discord.ButtonStyle.grey, disabled=True, row=0)
+    @discord.ui.button(label="1 / 1", style=discord.ButtonStyle.grey, row=0)
     async def counter_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.defer()
+        modal = GoToPageModal(nav_view=self)
+        await interaction.response.send_modal(modal)
 
     @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.secondary, row=0)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
